@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Trade Signal Bot</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0e17;
+            --card: #131d2b;
+            --border: #1a2a3f;
+            --text: #e8edf5;
+            --text-secondary: #8899bb;
+            --accent: #00a8ff;
+            --accent-glow: rgba(0, 168, 255, 0.2);
+            --win: #00d4aa;
+            --lose: #ff4757;
+        }
+        .ots-mode {
+            --accent: #ff3333;
+            --accent-glow: rgba(255, 51, 51, 0.2);
+            --card: #1a0e0e;
+            --border: #2f1a1a;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 16px;
+            overflow-x: hidden;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #6c5ce7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header .balance {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .header .balance span {
+            color: var(--win);
+            font-weight: 700;
+        }
+        .lang-selector {
+            display: flex;
+            gap: 4px;
+        }
+        .lang-btn {
+            padding: 4px 10px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .lang-btn.active {
+            border-color: var(--accent);
+            color: #fff;
+            background: var(--accent);
+        }
+        .lang-btn:hover { border-color: var(--accent); }
+        .pair-selector {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0 12px 0;
+            scrollbar-width: none;
+        }
+        .pair-selector::-webkit-scrollbar { display: none; }
+        .pair-btn {
+            padding: 8px 16px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .pair-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        .pair-btn:hover { border-color: var(--accent); }
+        .timeframe-row {
+            display: flex;
+            gap: 6px;
+            margin: 12px 0 16px 0;
+            flex-wrap: wrap;
+        }
+        .tf-btn {
+            padding: 6px 14px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .tf-btn.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .tf-btn:hover { border-color: var(--accent); }
+        .signal-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 24px 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+        .signal-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at center, var(--accent-glow), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        .signal-card.active::before { opacity: 1; }
+        .signal-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .signal-label .pair {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+        .signal-label .pair small {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+        .signal-badge {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .signal-badge.win {
+            background: rgba(0, 212, 170, 0.15);
+            color: var(--win);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+        .signal-badge.lose {
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--lose);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+        .signal-badge.waiting {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .signal-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 16px;
+            margin: 12px 0 8px 0;
+        }
+        .signal-details .item {
+            display: flex;
+            flex-direction: column;
+        }
+        .signal-details .item .label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .signal-details .item .value {
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+        .signal-details .item .value.down { color: var(--lose); }
+        .signal-details .item .value.up { color: var(--win); }
+        .signal-direction {
+            font-size: 48px;
+            text-align: center;
+            padding: 8px 0;
+            font-weight: 300;
+        }
+        .signal-direction.down { color: var(--lose); }
+        .signal-direction.up { color: var(--win); }
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent), #6c5ce7);
+            border: none;
+            border-radius: 16px;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary:active { transform: scale(0.97); }
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1), transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .btn-primary:active::after { opacity: 1; }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            transform: none;
+        }
+        .falling-money {
+            position: fixed;
+            pointer-events: none;
+            font-size: 24px;
+            z-index: 1000;
+            animation: fallDown 3s linear forwards;
+        }
+        @keyframes fallDown {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+        .result-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            animation: fadeIn 0.3s ease;
+        }
+        .result-overlay.show { display: flex; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .result-box {
+            background: var(--card);
+            border-radius: 32px;
+            padding: 40px 32px;
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+            border: 1px solid var(--border);
+        }
+        .result-box .icon { font-size: 64px; margin-bottom: 12px; }
+        .result-box .title { font-size: 28px; font-weight: 800; }
+        .result-box .title.win { color: var(--win); }
+        .result-box .title.lose { color: var(--lose); }
+        .result-box .sub { color: var(--text-secondary); margin: 8px 0 20px 0; font-size: 14px; }
+        .result-box .btn-close {
+            padding: 12px 40px;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        @media (max-width: 480px) {
+            .signal-details { grid-template-columns: 1fr 1fr; }
+            .signal-label .pair { font-size: 18px; }
+            .header { flex-direction: column; align-items: stretch; text-align: center; }
+            .lang-selector { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1 id="appTitle">📊 Trade Signal</h1>
+        <div class="lang-selector">
+            <button class="lang-btn" data-lang="ru" onclick="setLang('ru')">🇷🇺</button>
+            <button class="lang-btn" data-lang="en" onclick="setLang('en')">🇬🇧</button>
+            <button class="lang-btn" data-lang="uk" onclick="setLang('uk')">🇺🇦</button>
+            <button class="lang-btn" data-lang="kz" onclick="setLang('kz')">🇰🇿</button>
+        </div>
+        <div class="balance">💰 <span id="balanceDisplay">1000</span>$</div>
+    </div>
+
+    <div class="pair-selector" id="pairSelector"></div>
+    <div class="timeframe-row" id="timeframeRow">
+        <button class="tf-btn" data-tf="1м">1м</button>
+        <button class="tf-btn active" data-tf="3м">3м</button>
+        <button class="tf-btn" data-tf="5м">5м</button>
+        <button class="tf-btn" data-tf="15м">15м</button>
+        <button class="tf-btn" data-tf="30м">30м</button>
+        <button class="tf-btn" data-tf="1ч">1ч</button>
+    </div>
+
+    <div class="signal-card" id="signalCard">
+        <div class="signal-label">
+            <span class="pair" id="currentPair">EUR/USD <small>Forex</small></span>
+            <span class="signal-badge waiting" id="signalBadge">⏳ Ожидание</span>
+        </div>
+        <div class="signal-direction" id="signalDirection">⟷</div>
+        <div class="signal-details">
+            <div class="item"><span class="label" id="lblTF">Таймфрейм</span><span class="value" id="displayTF">3м</span></div>
+            <div class="item"><span class="label" id="lblAccuracy">Точность</span><span class="value" id="displayAccuracy">—</span></div>
+            <div class="item"><span class="label" id="lblDirection">Направление</span><span class="value" id="displayDirection">—</span></div>
+            <div class="item"><span class="label" id="lblTime">До</span><span class="value" id="displayTime">—</span></div>
+        </div>
+    </div>
+
+    <button class="btn-primary" id="getSignalBtn">🚀 ПОЛУЧИТЬ СИГНАЛ</button>
+
+    <div class="result-overlay" id="resultOverlay">
+        <div class="result-box">
+            <div class="icon" id="resultIcon">🎉</div>
+            <div class="title" id="resultTitle">WIN</div>
+            <div class="sub" id="resultSub">EUR/USD · 3м</div>
+            <button class="btn-close" id="resultCloseBtn">Закрыть</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== ЯЗЫКИ =====
+        const LANGUAGES = {
+            'ru': {
+                title: '📊 Trade Signal',
+                wait: '⏳ Ожидание',
+                win: '✅ WIN',
+                lose: '❌ LOSE',
+                tf: 'Таймфрейм',
+                accuracy: 'Точность',
+                direction: 'Направление',
+                time: 'До',
+                up: 'Вверх',
+                down: 'Вниз',
+                getSignal: '🚀 ПОЛУЧИТЬ СИГНАЛ',
+                generating: '⏳ ГЕНЕРАЦИЯ...',
+                close: 'Закрыть',
+                directionLabel: { up: '⬆', down: '⬇' }
+            },
+            'en': {
+                title: '📊 Trade Signal',
+                wait: '⏳ Waiting',
+                win: '✅ WIN',
+                lose: '❌ LOSE',
+                tf: 'Timeframe',
+                accuracy: 'Accuracy',
+                direction: 'Direction',
+                time: 'Until',
+                up: 'Up',
+                down: 'Down',
+                getSignal: '🚀 GET SIGNAL',
+                generating: '⏳ GENERATING...',
+                close: 'Close',
+                directionLabel: { up: '⬆', down: '⬇' }
+            },
+            'uk': {
+                title: '📊 Trade Signal',
+                wait: '⏳ Очікування',
+                win: '✅ WIN',
+                lose: '❌ LOSE',
+                tf: 'Таймфрейм',
+                accuracy: 'Точність',
+                direction: 'Напрямок',
+                time: 'До',
+                up: 'Вгору',
+                down: 'Вниз',
+                getSignal: '🚀 ОТРИМАТИ СИГНАЛ',
+                generating: '⏳ ГЕНЕРАЦІЯ...',
+                close: 'Закрити',
+                directionLabel: { up: '⬆', down: '⬇' }
+            },
+            'kz': {
+                title: '📊 Trade Signal',
+                wait: '⏳ Күту',
+                win: '✅ WIN',
+                lose: '❌ LOSE',
+                tf: 'Уақыт аралығы',
+                accuracy: 'Дәлдік',
+                direction: 'Бағыты',
+                time: 'Дейін',
+                up: 'Жоғары',
+                down: 'Төмен',
+                getSignal: '🚀 СИГНАЛ АЛУ',
+                generating: '⏳ ЖАСАЛУДА...',
+                close: 'Жабу',
+                directionLabel: { up: '⬆', down: '⬇' }
+            }
+        };
+
+        let currentLang = 'ru';
+
+        function getLang() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const lang = urlParams.get('lang');
+            if (lang && LANGUAGES[lang]) {
+                currentLang = lang;
+            }
+            return currentLang;
+        }
+
+        function t(key) {
+            return LANGUAGES[currentLang][key] || key;
+        }
+
+        function setLang(lang) {
+            if (LANGUAGES[lang]) {
+                currentLang = lang;
+                document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+                updateUI();
+            }
+        }
+
+        // ===== КОНФИГ =====
+        const PAIRS = [
+            'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD',
+            'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'USD/CHF', 'NZD/USD',
+            'EUR/AUD', 'GBP/AUD', 'AUD/JPY', 'CAD/JPY', 'CHF/JPY'
+        ];
+
+        // ===== ПРОВЕРКА OTS =====
+        const urlParams = new URLSearchParams(window.location.search);
+        const isOTS = urlParams.get('mode') === 'ots';
+        if (isOTS) {
+            document.body.classList.add('ots-mode');
+            document.getElementById('appTitle').style.background = 'linear-gradient(135deg, #ff3333, #ff6b6b)';
+            document.getElementById('appTitle').style.webkitBackgroundClip = 'text';
+            document.getElementById('appTitle').style.webkitTextFillColor = 'transparent';
+        }
+
+        // ===== СОСТОЯНИЕ =====
+        let state = {
+            pair: 'EUR/USD',
+            tf: '3м',
+            balance: 1000,
+            isWaiting: false
+        };
+
+        // ===== DOM =====
+        const pairSelector = document.getElementById('pairSelector');
+        const tfBtns = document.querySelectorAll('.tf-btn');
+        const signalCard = document.getElementById('signalCard');
+        const currentPair = document.getElementById('currentPair');
+        const signalBadge = document.getElementById('signalBadge');
+        const signalDirection = document.getElementById('signalDirection');
+        const displayTF = document.getElementById('displayTF');
+        const displayAccuracy = document.getElementById('displayAccuracy');
+        const displayDirection = document.getElementById('displayDirection');
+        const displayTime = document.getElementById('displayTime');
+        const balanceDisplay = document.getElementById('balanceDisplay');
+        const getSignalBtn = document.getElementById('getSignalBtn');
+        const resultOverlay = document.getElementById('resultOverlay');
+        const resultIcon = document.getElementById('resultIcon');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultSub = document.getElementById('resultSub');
+        const resultCloseBtn = document.getElementById('resultCloseBtn');
+
+        // ===== РЕНДЕР ПАР =====
+        function renderPairs() {
+            pairSelector.innerHTML = '';
+            PAIRS.forEach(p => {
+                const btn = document.createElement('button');
+                btn.className = `pair-btn ${p === state.pair ? 'active' : ''}`;
+                btn.textContent = p;
+                btn.dataset.pair = p;
+                btn.addEventListener('click', () => selectPair(p));
+                pairSelector.appendChild(btn);
+            });
+        }
+
+        function selectPair(pair) {
+            state.pair = pair;
+            document.querySelectorAll('.pair-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.pair === pair);
+            });
+            currentPair.innerHTML = `${pair} <small>Forex</small>`;
+            updateSignalDisplay(null);
+        }
+
+        // ===== ТАЙМФРЕЙМ =====
+        tfBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tfBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                state.tf = btn.dataset.tf;
+                displayTF.textContent = state.tf;
+                updateSignalDisplay(null);
+            });
+        });
+
+        // ===== ГЕНЕРАЦИЯ СИГНАЛА =====
+        function generateSignal() {
+            const isWin = Math.random() > 0.35;
+            const direction = Math.random() > 0.5 ? 'up' : 'down';
+            const accuracy = Math.floor(Math.random() * 30) + 65;
+            const time = new Date();
+            time.setMinutes(time.getMinutes() + Math.floor(Math.random() * 15) + 5);
+            const timeStr = time.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+            return {
+                pair: state.pair,
+                tf: state.tf,
+                win: isWin,
+                direction: direction,
+                accuracy: accuracy,
+                time: timeStr,
+                timestamp: Date.now()
+            };
+        }
+
+        function updateUI() {
+            document.getElementById('appTitle').textContent = t('title');
+            getSignalBtn.textContent = t('getSignal');
+            document.getElementById('lblTF').textContent = t('tf');
+            document.getElementById('lblAccuracy').textContent = t('accuracy');
+            document.getElementById('lblDirection').textContent = t('direction');
+            document.getElementById('lblTime').textContent = t('time');
+            resultCloseBtn.textContent = t('close');
+        }
+
+        function updateSignalDisplay(signal) {
+            if (!signal) {
+                signalBadge.className = 'signal-badge waiting';
+                signalBadge.textContent = t('wait');
+                signalDirection.textContent = '⟷';
+                signalDirection.className = 'signal-direction';
+                displayAccuracy.textContent = '—';
+                displayDirection.textContent = '—';
+                displayTime.textContent = '—';
+                signalCard.classList.remove('active');
+                return;
+            }
+
+            const isWin = signal.win;
+            signalBadge.className = `signal-badge ${isWin ? 'win' : 'lose'}`;
+            signalBadge.textContent = isWin ? t('win') : t('lose');
+
+            const dirLabel = t('directionLabel');
+            signalDirection.textContent = signal.direction === 'up' ? dirLabel.up : dirLabel.down;
+            signalDirection.className = `signal-direction ${signal.direction}`;
+
+            displayAccuracy.textContent = signal.accuracy + '%';
+            displayDirection.textContent = signal.direction === 'up' ? t('up') : t('down');
+            displayTime.textContent = signal.time;
+
+            signalCard.classList.add('active');
+
+            if (isWin) {
+                spawnFallingMoney();
+            }
+
+            showResult(isWin, signal);
+        }
+
+        // ===== РЕЗУЛЬТАТ =====
+        function showResult(isWin, signal) {
+            resultIcon.textContent = isWin ? '🎉' : '😢';
+            resultTitle.textContent = isWin ? 'WIN' : 'LOSE';
+            resultTitle.className = `title ${isWin ? 'win' : 'lose'}`;
+            resultSub.textContent = `${signal.pair} · ${signal.tf}`;
+            resultOverlay.classList.add('show');
+
+            if (isWin) {
+                state.balance += 50;
+            } else {
+                state.balance -= 30;
+            }
+            balanceDisplay.textContent = state.balance;
+        }
+
+        resultCloseBtn.addEventListener('click', () => {
+            resultOverlay.classList.remove('show');
+        });
+
+        resultOverlay.addEventListener('click', (e) => {
+            if (e.target === resultOverlay) {
+                resultOverlay.classList.remove('show');
+            }
+        });
+
+        // ===== ПАДАЮЩИЕ ДОЛЛАРЫ =====
+        function spawnFallingMoney() {
+            const symbols = ['💵', '💰', '🤑', '💲', '💸'];
+            for (let i = 0; i < 15; i++) {
+                setTimeout(() => {
+                    const el = document.createElement('div');
+                    el.className = 'falling-money';
+                    el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                    el.style.left = Math.random() * 100 + '%';
+                    el.style.fontSize = (Math.random() * 20 + 20) + 'px';
+                    el.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    document.body.appendChild(el);
+                    setTimeout(() => el.remove(), 4000);
+                }, i * 80);
+            }
+        }
+
+        // ===== ПОЛУЧИТЬ СИГНАЛ =====
+        getSignalBtn.addEventListener('click', () => {
+            if (state.isWaiting) return;
+            state.isWaiting = true;
+            getSignalBtn.disabled = true;
+            getSignalBtn.textContent = t('generating');
+
+            signalCard.style.transition = 'all 0.3s';
+            signalCard.style.transform = 'scale(0.95)';
+            signalCard.style.opacity = '0.5';
+
+            setTimeout(() => {
+                const signal = generateSignal();
+                state.isWaiting = false;
+                getSignalBtn.disabled = false;
+                getSignalBtn.textContent = t('getSignal');
+                signalCard.style.transform = 'scale(1)';
+                signalCard.style.opacity = '1';
+                updateSignalDisplay(signal);
+            }, 1200);
+        });
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        const lang = getLang();
+        document.querySelectorAll('.lang-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.lang === lang);
+        });
+        renderPairs();
+        currentPair.innerHTML = `${state.pair} <small>Forex</small>`;
+        displayTF.textContent = state.tf;
+        balanceDisplay.textContent = state.balance;
+        updateUI();
+
+        setTimeout(() => {
+            const signal = generateSignal();
+            updateSignalDisplay(signal);
+        }, 1500);
+
+        // ===== ТЕЛЕГРАМ =====
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.expand();
+            tg.ready();
+        }
+
+        console.log(isOTS ? '🔴 OTS режим' : '📊 Обычный режим', 'Язык:', currentLang);
+    </script>
+</body>
+</html>
